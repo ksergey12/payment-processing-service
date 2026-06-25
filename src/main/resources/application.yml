@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: payment-processing-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/payment_db
+    username: postgres
+    password: postgres
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+  flyway:
+    enabled: false
+
+server:
+  port: 8080
