@@ -10,7 +10,7 @@ spring:
       ddl-auto: validate
     show-sql: true
   flyway:
-    enabled: false
+    enabled: true
 
 server:
   port: 8080
