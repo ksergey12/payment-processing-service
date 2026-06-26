@@ -11,9 +11,15 @@ spring:
     show-sql: true
   flyway:
     enabled: true
+  threads:
+    virtual:
+      enabled: false
 
 server:
   port: 8080
+  tomcat:
+    threads:
+      max: 10
 
 jwt:
   secret: "VGhpc0lzQVRlc3RTZWNyZXRLZXlGb3JKV1RTaWduaW5nMjAyNg=="
@@ -37,3 +43,4 @@ resilience4j:
         permitted-number-of-calls-in-half-open-state: 3
         record-exceptions:
           - com.saas.paymentservice.external.BankGatewayException
+
