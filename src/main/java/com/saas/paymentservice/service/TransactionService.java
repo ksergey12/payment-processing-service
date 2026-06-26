@@ -4,6 +4,7 @@ import com.saas.paymentservice.dto.CreateTransactionRequest;
 import com.saas.paymentservice.dto.TransactionResponse;
 import com.saas.paymentservice.entity.IdempotencyKey;
 import com.saas.paymentservice.entity.Transaction;
+import com.saas.paymentservice.entity.TransactionStatus;
 import com.saas.paymentservice.repository.IdempotencyKeyRepository;
 import com.saas.paymentservice.repository.TransactionRepository;
 import org.springframework.stereotype.Service;
@@ -18,11 +19,14 @@ public class TransactionService {
 
     private final TransactionRepository transactionRepository;
     private final IdempotencyKeyRepository idempotencyKeyRepository;
+    private final BankGatewayService bankGatewayService;
 
     public TransactionService(TransactionRepository transactionRepository,
-                              IdempotencyKeyRepository idempotencyKeyRepository) {
+                              IdempotencyKeyRepository idempotencyKeyRepository,
+                              BankGatewayService bankGatewayService) {
         this.transactionRepository = transactionRepository;
         this.idempotencyKeyRepository = idempotencyKeyRepository;
+        this.bankGatewayService = bankGatewayService;
     }
 
     @Transactional
@@ -37,6 +41,14 @@ public class TransactionService {
 
         Transaction transaction = new Transaction(request.amount(), request.currency());
         Transaction saved = transactionRepository.save(transaction);
+
+        String confirmation = bankGatewayService.confirmPayment(saved.getId());
+        if (confirmation.startsWith("CONFIRMED")) {
+            saved.setStatus(TransactionStatus.COMPLETED);
+        } else {
+            saved.setStatus(TransactionStatus.PENDING);
+        }
+        saved = transactionRepository.save(saved);
 
         if (idempotencyKey != null) {
             idempotencyKeyRepository.save(new IdempotencyKey(idempotencyKey, saved.getId()));
