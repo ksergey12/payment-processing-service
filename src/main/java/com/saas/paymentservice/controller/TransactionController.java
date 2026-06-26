@@ -23,8 +23,9 @@ public class TransactionController {
 
     @PostMapping
     public ResponseEntity<TransactionResponse> createTransaction(
-            @Valid @RequestBody CreateTransactionRequest request) {
-        TransactionResponse response = transactionService.createTransaction(request);
+            @Valid @RequestBody CreateTransactionRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        TransactionResponse response = transactionService.createTransaction(request, idempotencyKey);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
