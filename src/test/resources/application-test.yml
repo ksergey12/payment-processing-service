@@ -1,0 +1,22 @@
+spring:
+  docker:
+    compose:
+      enabled: false
+  datasource:
+    url: # пустое значение — будет переопределено @DynamicPropertySource
+    username:
+    password:
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      max-lifetime: 30000
+      connection-timeout: 20000
+      idle-timeout: 10000
+  jpa:
+    show-sql: false
+  flyway:
+    enabled: true
+
+jwt:
+  secret: "VGhpc0lzQVRlc3RTZWNyZXRLZXlGb3JKV1RTaWduaW5nMjAyNg=="
+  expiration-ms: 3600000
