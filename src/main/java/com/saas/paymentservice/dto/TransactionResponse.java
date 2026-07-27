@@ -12,7 +12,8 @@ public record TransactionResponse(
         BigDecimal amount,
         String currency,
         TransactionStatus status,
-        Instant createdAt
+        Instant createdAt,
+        UUID userId
 ) {
     public static TransactionResponse from(Transaction transaction) {
         return new TransactionResponse(
@@ -20,7 +21,8 @@ public record TransactionResponse(
                 transaction.getAmount(),
                 transaction.getCurrency(),
                 transaction.getStatus(),
-                transaction.getCreatedAt()
+                transaction.getCreatedAt(),
+                transaction.getUserId()
         );
     }
 }

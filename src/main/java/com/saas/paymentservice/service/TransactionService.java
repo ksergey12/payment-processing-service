@@ -12,7 +12,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 
@@ -32,17 +31,22 @@ public class TransactionService {
     }
 
     @Transactional
-    public TransactionResponse createTransaction(CreateTransactionRequest request, String idempotencyKey) {
+    public TransactionResponse createTransaction(CreateTransactionRequest request,
+                                                 String idempotencyKey,
+                                                 UUID userId) {
         if (idempotencyKey != null) {
             var existingKey = idempotencyKeyRepository.findById(idempotencyKey);
             if (existingKey.isPresent()) {
-                UUID existingTransactionId = existingKey.get().getTransactionId();
-                return getTransaction(existingTransactionId);
+                return getTransaction(existingKey.get().getTransactionId(), userId);
             }
         }
 
-        Transaction transaction = new Transaction(request.amount(), request.currency());
+        Transaction transaction = new Transaction(request.amount(), request.currency(), userId);
         Transaction saved = transactionRepository.save(transaction);
+
+        if (idempotencyKey != null) {
+            idempotencyKeyRepository.save(new IdempotencyKey(idempotencyKey, saved.getId()));
+        }
 
         String confirmation = bankGatewayService.confirmPayment(saved.getId());
         if (confirmation.startsWith("CONFIRMED")) {
@@ -52,21 +56,17 @@ public class TransactionService {
         }
         saved = transactionRepository.save(saved);
 
-        if (idempotencyKey != null) {
-            idempotencyKeyRepository.save(new IdempotencyKey(idempotencyKey, saved.getId()));
-        }
-
         return TransactionResponse.from(saved);
     }
 
-    public TransactionResponse getTransaction(UUID id) {
-        Transaction transaction = transactionRepository.findById(id)
+    public TransactionResponse getTransaction(UUID id, UUID userId) {
+        Transaction transaction = transactionRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new NoSuchElementException("Transaction not found: " + id));
         return TransactionResponse.from(transaction);
     }
 
-    public Page<TransactionResponse> getAllTransactions(Pageable pageable) {
-        return transactionRepository.findAll(pageable)
+    public Page<TransactionResponse> getAllTransactions(UUID userId, Pageable pageable) {
+        return transactionRepository.findAllByUserId(userId, pageable)
                 .map(TransactionResponse::from);
     }
 }

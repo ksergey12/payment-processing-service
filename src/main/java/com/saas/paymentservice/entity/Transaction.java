@@ -26,6 +26,9 @@ public class Transaction {
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(name = "user_id", nullable = false, updatable = false)
+    private UUID userId;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = Instant.now();
@@ -34,14 +37,13 @@ public class Transaction {
         }
     }
 
-    // конструкторы, геттеры, сеттеры ниже
     protected Transaction() {
-        // пустой конструктор обязателен для JPA
     }
 
-    public Transaction(BigDecimal amount, String currency) {
+    public Transaction(BigDecimal amount, String currency, UUID userId) {
         this.amount = amount;
         this.currency = currency;
+        this.userId = userId;
     }
 
     public UUID getId() {
@@ -66,5 +68,9 @@ public class Transaction {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public UUID getUserId() {
+        return userId;
     }
 }
