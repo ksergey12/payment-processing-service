@@ -7,6 +7,8 @@ import com.saas.paymentservice.entity.Transaction;
 import com.saas.paymentservice.entity.TransactionStatus;
 import com.saas.paymentservice.repository.IdempotencyKeyRepository;
 import com.saas.paymentservice.repository.TransactionRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -63,10 +65,8 @@ public class TransactionService {
         return TransactionResponse.from(transaction);
     }
 
-    public List<TransactionResponse> getAllTransactions() {
-        return transactionRepository.findAll()
-                .stream()
-                .map(TransactionResponse::from)
-                .toList();
+    public Page<TransactionResponse> getAllTransactions(Pageable pageable) {
+        return transactionRepository.findAll(pageable)
+                .map(TransactionResponse::from);
     }
 }

@@ -61,6 +61,35 @@ src/
 | GET | `/api/v1/transactions` | Bearer JWT | List all transactions |
 | GET | `/api/v1/transactions/{id}` | Bearer JWT | Get transaction by ID |
 
+#### Pagination & Sorting
+
+`GET /api/v1/transactions` supports pagination and sorting via query parameters:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `page` | `0` | Page number (zero-based) |
+| `size` | `20` | Page size |
+| `sort` | `createdAt,desc` | Field and direction |
+
+```bash
+# Page 0, 10 results, sorted by amount descending
+curl "http://localhost:8080/api/v1/transactions?page=0&size=10&sort=amount,desc" \
+  -H "Authorization: Bearer <token>"
+```
+
+Response includes pagination metadata:
+```json
+{
+  "content": [...],
+  "page": {
+    "size": 10,
+    "number": 0,
+    "totalElements": 42,
+    "totalPages": 5
+  }
+}
+```
+
 #### Idempotency
 
 Pass `Idempotency-Key: <uuid>` header on `POST /api/v1/transactions` to prevent duplicates on retry. Repeated requests with the same key return the original response without creating a new transaction.
