@@ -14,6 +14,8 @@ spring:
   threads:
     virtual:
       enabled: false
+  profiles:
+    active: local
 
 server:
   port: 8080
@@ -41,3 +43,14 @@ resilience4j:
         record-exceptions:
           - com.saas.paymentservice.external.BankGatewayException
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,info
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    tags:
+      application: ${spring.application.name}

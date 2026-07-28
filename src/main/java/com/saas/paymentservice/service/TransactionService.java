@@ -2,6 +2,7 @@ package com.saas.paymentservice.service;
 
 import com.saas.paymentservice.dto.CreateTransactionRequest;
 import com.saas.paymentservice.dto.TransactionResponse;
+import com.saas.paymentservice.entity.AuditEventType;
 import com.saas.paymentservice.entity.IdempotencyKey;
 import com.saas.paymentservice.entity.Transaction;
 import com.saas.paymentservice.entity.TransactionStatus;
@@ -15,48 +16,95 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+
+
 @Service
 public class TransactionService {
+
+    private final Counter transactionCreatedCounter;
+    private final Counter transactionCompletedCounter;
+    private final Counter transactionFailedCounter;
+    private final Timer transactionTimer;
 
     private final TransactionRepository transactionRepository;
     private final IdempotencyKeyRepository idempotencyKeyRepository;
     private final BankGatewayService bankGatewayService;
+    private final AuditService auditService;
 
     public TransactionService(TransactionRepository transactionRepository,
                               IdempotencyKeyRepository idempotencyKeyRepository,
-                              BankGatewayService bankGatewayService) {
+                              BankGatewayService bankGatewayService,
+                              AuditService auditService,
+                              MeterRegistry meterRegistry) {
         this.transactionRepository = transactionRepository;
         this.idempotencyKeyRepository = idempotencyKeyRepository;
         this.bankGatewayService = bankGatewayService;
+        this.auditService = auditService;
+
+        this.transactionCreatedCounter = Counter.builder("transactions.created")
+                .description("Total transactions created")
+                .register(meterRegistry);
+        this.transactionCompletedCounter = Counter.builder("transactions.completed")
+                .description("Total transactions completed")
+                .register(meterRegistry);
+        this.transactionFailedCounter = Counter.builder("transactions.failed")
+                .description("Total transactions failed or pending")
+                .register(meterRegistry);
+        this.transactionTimer = Timer.builder("transactions.processing.time")
+                .description("Time to process a transaction")
+                .register(meterRegistry);
     }
 
     @Transactional
     public TransactionResponse createTransaction(CreateTransactionRequest request,
                                                  String idempotencyKey,
                                                  UUID userId) {
-        if (idempotencyKey != null) {
-            var existingKey = idempotencyKeyRepository.findById(idempotencyKey);
-            if (existingKey.isPresent()) {
-                return getTransaction(existingKey.get().getTransactionId(), userId);
+        return transactionTimer.record(() -> {
+
+            if (idempotencyKey != null) {
+                var existingKey = idempotencyKeyRepository.findById(idempotencyKey);
+                if (existingKey.isPresent()) {
+                    UUID existingId = existingKey.get().getTransactionId();
+                    auditService.record(existingId, userId,
+                            AuditEventType.IDEMPOTENT_REQUEST,
+                            "Duplicate request with key: " + idempotencyKey);
+                    return getTransaction(existingId, userId);
+                }
             }
-        }
 
-        Transaction transaction = new Transaction(request.amount(), request.currency(), userId);
-        Transaction saved = transactionRepository.save(transaction);
+            Transaction transaction = new Transaction(request.amount(), request.currency(), userId);
+            Transaction saved = transactionRepository.save(transaction);
 
-        if (idempotencyKey != null) {
-            idempotencyKeyRepository.save(new IdempotencyKey(idempotencyKey, saved.getId()));
-        }
+            auditService.record(saved.getId(), userId,
+                    AuditEventType.TRANSACTION_CREATED,
+                    "amount=" + request.amount() + " currency=" + request.currency());
 
-        String confirmation = bankGatewayService.confirmPayment(saved.getId());
-        if (confirmation.startsWith("CONFIRMED")) {
-            saved.setStatus(TransactionStatus.COMPLETED);
-        } else {
-            saved.setStatus(TransactionStatus.PENDING);
-        }
-        saved = transactionRepository.save(saved);
+            if (idempotencyKey != null) {
+                idempotencyKeyRepository.save(new IdempotencyKey(idempotencyKey, saved.getId()));
+            }
 
-        return TransactionResponse.from(saved);
+            String confirmation = bankGatewayService.confirmPayment(saved.getId());
+            if (confirmation.startsWith("CONFIRMED")) {
+                saved.setStatus(TransactionStatus.COMPLETED);
+                transactionCompletedCounter.increment();
+                auditService.record(saved.getId(), userId,
+                        AuditEventType.TRANSACTION_COMPLETED,
+                        "confirmation=" + confirmation);
+            } else {
+                saved.setStatus(TransactionStatus.PENDING);
+                transactionFailedCounter.increment();
+                auditService.record(saved.getId(), userId,
+                        AuditEventType.TRANSACTION_FAILED,
+                        "Bank gateway returned: " + confirmation);
+            }
+            saved = transactionRepository.save(saved);
+            transactionCreatedCounter.increment();
+
+            return TransactionResponse.from(saved);
+        });
     }
 
     public TransactionResponse getTransaction(UUID id, UUID userId) {
