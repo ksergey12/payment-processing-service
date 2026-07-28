@@ -9,9 +9,12 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       SPRING_JPA_HIBERNATE_DDL_AUTO: validate
       JWT_SECRET: ${JWT_SECRET}
+      SPRING_PROFILES_ACTIVE: docker
     depends_on:
       db:
         condition: service_healthy
+      loki:
+        condition: service_started
 
   db:
     image: postgres:16-alpine
@@ -29,5 +32,29 @@ services:
       timeout: 5s
       retries: 5
 
+  loki:
+    image: grafana/loki:2.9.0
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./docker/loki-config.yml:/etc/loki/local-config.yaml
+      - loki-data:/tmp/loki
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - loki
+
 volumes:
   pgdata:
+  loki-data:
+  grafana-data:

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
 
+    <springProperty scope="context" name="spring.application.name" source="spring.application.name"/>
     <!-- Локальная разработка без Docker Compose — читаемый текст в консоли -->
     <springProfile name="local">
         <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
