@@ -27,4 +27,13 @@ public class UserService {
         User user = new User(request.username(), hash, "USER");
         userRepository.save(user);
     }
+
+    public void registerAdmin(RegisterRequest request) {
+        if (userRepository.existsByUsername(request.username())) {
+            throw new UsernameAlreadyExistsException(request.username());
+        }
+        String hash = passwordEncoder.encode(request.password());
+        User user = new User(request.username(), hash, "ADMIN");
+        userRepository.save(user);
+    }
 }

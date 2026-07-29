@@ -71,7 +71,7 @@ public class TransactionService {
                     auditService.record(existingId, userId,
                             AuditEventType.IDEMPOTENT_REQUEST,
                             "Duplicate request with key: " + idempotencyKey);
-                    return getTransaction(existingId, userId);
+                    return getTransaction(existingId, userId, false);
                 }
             }
 
@@ -107,13 +107,25 @@ public class TransactionService {
         });
     }
 
-    public TransactionResponse getTransaction(UUID id, UUID userId) {
-        Transaction transaction = transactionRepository.findByIdAndUserId(id, userId)
-                .orElseThrow(() -> new NoSuchElementException("Transaction not found: " + id));
+    public TransactionResponse getTransaction(UUID id, UUID userId, boolean isAdmin) {
+        Transaction transaction;
+        if (isAdmin) {
+            transaction = transactionRepository.findById(id)
+                    .orElseThrow(() -> new NoSuchElementException("Transaction not found: " + id));
+        } else {
+            transaction = transactionRepository.findByIdAndUserId(id, userId)
+                    .orElseThrow(() -> new NoSuchElementException("Transaction not found: " + id));
+        }
         return TransactionResponse.from(transaction);
     }
 
-    public Page<TransactionResponse> getAllTransactions(UUID userId, Pageable pageable) {
+    public Page<TransactionResponse> getAllTransactions(UUID userId,
+                                                        boolean isAdmin,
+                                                        Pageable pageable) {
+        if (isAdmin) {
+            return transactionRepository.findAll(pageable)
+                    .map(TransactionResponse::from);
+        }
         return transactionRepository.findAllByUserId(userId, pageable)
                 .map(TransactionResponse::from);
     }

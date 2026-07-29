@@ -11,6 +11,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -31,6 +32,7 @@ public class TransactionController {
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('USER')")
     public ResponseEntity<TransactionResponse> createTransaction(
             @Valid @RequestBody CreateTransactionRequest request,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
@@ -42,20 +44,26 @@ public class TransactionController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     public ResponseEntity<TransactionResponse> getTransaction(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserDetails userDetails) {
         UUID userId = resolveUserId(userDetails);
-        return ResponseEntity.ok(transactionService.getTransaction(id, userId));
+        boolean isAdmin = userDetails.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        return ResponseEntity.ok(transactionService.getTransaction(id, userId, isAdmin));
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     public ResponseEntity<Page<TransactionResponse>> getAllTransactions(
             @PageableDefault(size = 20, sort = "createdAt",
                     direction = Sort.Direction.DESC) Pageable pageable,
             @AuthenticationPrincipal UserDetails userDetails) {
         UUID userId = resolveUserId(userDetails);
-        return ResponseEntity.ok(transactionService.getAllTransactions(userId, pageable));
+        boolean isAdmin = userDetails.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        return ResponseEntity.ok(transactionService.getAllTransactions(userId, isAdmin, pageable));
     }
 
     private UUID resolveUserId(UserDetails userDetails) {

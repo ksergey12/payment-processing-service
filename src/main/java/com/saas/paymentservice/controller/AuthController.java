@@ -8,6 +8,7 @@ import com.saas.paymentservice.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -43,6 +44,13 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<Void> register(@Valid @RequestBody RegisterRequest request) {
         userService.register(request);
+        return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
+    @PostMapping("/register/admin")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> registerAdmin(@Valid @RequestBody RegisterRequest request) {
+        userService.registerAdmin(request);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 }
