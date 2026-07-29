@@ -5,6 +5,7 @@ import com.saas.paymentservice.dto.LoginResponse;
 import com.saas.paymentservice.dto.RegisterRequest;
 import com.saas.paymentservice.security.JwtService;
 import com.saas.paymentservice.service.UserService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@Tag(name = "Authentification", description = "Authentification and user management")
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {

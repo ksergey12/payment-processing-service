@@ -4,6 +4,8 @@ import com.saas.paymentservice.dto.CreateTransactionRequest;
 import com.saas.paymentservice.dto.TransactionResponse;
 import com.saas.paymentservice.repository.UserRepository;
 import com.saas.paymentservice.service.TransactionService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 
+@Tag(name = "Transactions", description = "Payment transaction management")
 @RestController
 @RequestMapping("/api/v1/transactions")
 public class TransactionController {
@@ -31,6 +34,8 @@ public class TransactionController {
         this.userRepository = userRepository;
     }
 
+    @Operation(summary = "Create a new transaction",
+            description = "Supports idempotency via Idempotency-Key header")
     @PostMapping
     @PreAuthorize("hasRole('USER')")
     public ResponseEntity<TransactionResponse> createTransaction(

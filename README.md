@@ -1,5 +1,7 @@
 # Payment Processing Service
 
+![CI](https://github.com/ksergey12/payment-processing-service/actions/workflows/ci.yml/badge.svg)
+
 A backend REST API for payment processing, built as a portfolio project demonstrating modern Java and Spring Boot practices relevant to fintech development.
 
 ## Tech Stack
@@ -11,6 +13,8 @@ A backend REST API for payment processing, built as a portfolio project demonstr
 | Security | Spring Security 6 + JWT (jjwt 0.12.x) |
 | Persistence | PostgreSQL 16, Spring Data JPA, Flyway |
 | Resilience | Resilience4j (Circuit Breaker, Retry) |
+| Observability | Micrometer, Loki, Grafana |
+| API Docs | SpringDoc OpenAPI 2.x (Swagger UI) |
 | Testing | JUnit 5, MockMvc, Testcontainers |
 | Build | Maven |
 | Runtime | Docker, Docker Compose |
@@ -18,48 +22,67 @@ A backend REST API for payment processing, built as a portfolio project demonstr
 ## Key Features
 
 - **JWT Authentication** — stateless auth with Spring Security 6 (`SecurityFilterChain`-based config, no `WebSecurityConfigurerAdapter`)
+- **Role-based Authorization** — `USER` creates and views own transactions; `ADMIN` views all transactions via `@PreAuthorize`
+- **Data Isolation** — users can only access their own transactions; cross-user access returns `404` to prevent information leakage
 - **Idempotent Payments** — `Idempotency-Key` header prevents duplicate transactions on client retries
 - **Resilience** — Circuit Breaker + Retry on external bank gateway calls via Resilience4j
 - **Virtual Threads** — enabled via Spring Boot 3.2+ flag for improved I/O-bound throughput (Java 21 Project Loom)
-- **Schema Versioning** — Flyway migrations, no Hibernate auto-DDL
+- **Observability** — structured JSON logs via Logback + MDC tracing (`traceId`, `userId`), Micrometer metrics, Loki + Grafana for log aggregation
+- **Schema Versioning** — Flyway migrations (V1–V8), no Hibernate auto-DDL
 - **Integration Tests** — real PostgreSQL via Testcontainers, no H2 mocks
+- **API Documentation** — Swagger UI via SpringDoc OpenAPI 2.x
 
 ## Project Structure
 
 ```
-src/
-├── main/java/com/saas/paymentservice/
-│   ├── config/          # SecurityConfig
-│   ├── controller/      # AuthController, TransactionController
-│   ├── dto/             # Request/Response records
-│   ├── entity/          # Transaction, User, IdempotencyKey
-│   ├── exception/       # GlobalExceptionHandler, custom exceptions
-│   ├── external/        # BankGatewayClient (mock)
-│   ├── repository/      # JPA repositories
-│   ├── security/        # JwtService, JwtAuthFilter, CustomUserDetailsService
-│   └── service/         # TransactionService, UserService, BankGatewayService
-├── main/resources/
-│   ├── application.yml
-│   └── db/migration/    # Flyway SQL migrations
-└── test/java/           # Integration tests (Testcontainers)
+payment-processing-service/
+├── docker/
+│   ├── loki-config.yml
+│   └── grafana/provisioning/datasources/loki.yml
+├── src/
+│   ├── main/java/com/saas/paymentservice/
+│   │   ├── config/          # SecurityConfig, OpenApiConfig, WebConfig
+│   │   ├── controller/      # AuthController, TransactionController
+│   │   ├── dto/             # Request/Response records
+│   │   ├── entity/          # Transaction, User, IdempotencyKey, AuditLog
+│   │   ├── exception/       # GlobalExceptionHandler, custom exceptions
+│   │   ├── external/        # BankGatewayClient (mock)
+│   │   ├── filter/          # MdcFilter
+│   │   ├── repository/      # JPA repositories
+│   │   ├── security/        # JwtService, JwtAuthFilter, CustomUserDetailsService
+│   │   └── service/         # TransactionService, UserService, BankGatewayService, AuditService
+│   ├── main/resources/
+│   │   ├── application.yml
+│   │   ├── logback-spring.xml
+│   │   └── db/migration/    # Flyway SQL migrations V1–V8
+│   └── test/java/           # Integration tests (Testcontainers + MockMvc)
+└── docker-compose.yml
 ```
 
 ## API Endpoints
 
 ### Auth
 
-| Method | Endpoint | Auth | Description |
+| Method | Endpoint | Role | Description |
 |--------|----------|------|-------------|
-| POST | `/api/v1/auth/register` | — | Register new user |
+| POST | `/api/v1/auth/register` | — | Register new user (role: USER) |
 | POST | `/api/v1/auth/login` | — | Login, returns JWT |
+| POST | `/api/v1/auth/register/admin` | ADMIN | Register new admin user |
 
 ### Transactions
 
-| Method | Endpoint | Auth | Description |
+| Method | Endpoint | Role | Description |
 |--------|----------|------|-------------|
-| POST | `/api/v1/transactions` | Bearer JWT | Create transaction |
-| GET | `/api/v1/transactions` | Bearer JWT | List all transactions |
-| GET | `/api/v1/transactions/{id}` | Bearer JWT | Get transaction by ID |
+| POST | `/api/v1/transactions` | USER | Create transaction |
+| GET | `/api/v1/transactions` | USER, ADMIN | List transactions (USER: own only, ADMIN: all) |
+| GET | `/api/v1/transactions/{id}` | USER, ADMIN | Get transaction by ID |
+
+### API Documentation
+
+| URL | Description |
+|-----|-------------|
+| `http://localhost:8080/swagger-ui.html` | Interactive Swagger UI |
+| `http://localhost:8080/v3/api-docs` | OpenAPI 3.0 JSON spec |
 
 #### Pagination & Sorting
 
@@ -105,12 +128,18 @@ Pass `Idempotency-Key: <uuid>` header on `POST /api/v1/transactions` to prevent 
 ### Option 1 — Docker Compose (recommended)
 
 ```bash
-git clone https://github.com/ksergey12/payment-processing-service.git
+git clone https://github.com/<your-username>/payment-processing-service.git
 cd payment-processing-service
+cp .env.example .env   # fill in your values
 docker-compose up
 ```
 
-Application starts on `http://localhost:8080`. PostgreSQL is started automatically.
+| Service | URL |
+|---------|-----|
+| Application | http://localhost:8080 |
+| Swagger UI | http://localhost:8080/swagger-ui.html |
+| Grafana (logs) | http://localhost:3000 |
+| Loki | http://localhost:3100 |
 
 ### Option 2 — IDE + local Docker
 
@@ -200,6 +229,12 @@ Tests spin up a dedicated PostgreSQL container automatically. No manual setup re
 **Virtual Threads enabled** — benchmarked on 50 concurrent requests with a 2s blocking I/O call: platform threads (pool=10) took ~10s; virtual threads took ~2s. Enabled via `spring.threads.virtual.enabled: true` with no code changes required.
 
 **`jakarta.*` namespace** — project targets Spring Boot 3.x / Jakarta EE 9+; all imports use `jakarta.*` (not `javax.*`).
+
+**404 on cross-user access, not 403** — when a USER requests another user's transaction, the API returns `404 Not Found` rather than `403 Forbidden`. This avoids leaking information about whether a resource exists — a standard practice in fintech APIs.
+
+**ADMIN and USER as separate roles** — ADMIN does not inherit USER permissions. An admin can view all transactions for audit purposes but cannot create transactions. This separation of concerns prevents accidental privilege escalation.
+
+**Structured logs with MDC** — every request is tagged with a `traceId` (UUID) and `userId` in the MDC context. This allows filtering all log entries for a single request or user in Grafana/Loki without any code changes in individual services.
 
 ## Environment Variables
 

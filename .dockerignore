@@ -6,3 +6,6 @@ target/
 Dockerfile
 docker-compose.yml
 .env
+*.md
+docker/
+**/*.log
