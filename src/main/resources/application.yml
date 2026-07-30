@@ -22,7 +22,8 @@ server:
 
 jwt:
   secret: "VGhpc0lzQVRlc3RTZWNyZXRLZXlGb3JKV1RTaWduaW5nMjAyNg=="
-  expiration-ms: 3600000
+  expiration-ms: 900000             # 15 min for access token
+  refresh-expiration-ms: 604800000  # 7 days for refresh token
 
 resilience4j:
   retry:

@@ -40,7 +40,7 @@ payment-processing-service/
 │   ├── loki-config.yml
 │   └── grafana/provisioning/datasources/loki.yml
 ├── src/
-│   ├── main/java/com/saas/paymentservice/
+│   ├── main/java/com/konstantin/paymentservice/
 │   │   ├── config/          # SecurityConfig, OpenApiConfig, WebConfig
 │   │   ├── controller/      # AuthController, TransactionController
 │   │   ├── dto/             # Request/Response records
@@ -54,7 +54,7 @@ payment-processing-service/
 │   ├── main/resources/
 │   │   ├── application.yml
 │   │   ├── logback-spring.xml
-│   │   └── db/migration/    # Flyway SQL migrations V1–V8
+│   │   └── db/migration/    # Flyway SQL migrations V1–V9
 │   └── test/java/           # Integration tests (Testcontainers + MockMvc)
 └── docker-compose.yml
 ```
@@ -66,7 +66,9 @@ payment-processing-service/
 | Method | Endpoint | Role | Description |
 |--------|----------|------|-------------|
 | POST | `/api/v1/auth/register` | — | Register new user (role: USER) |
-| POST | `/api/v1/auth/login` | — | Login, returns JWT |
+| POST | `/api/v1/auth/login` | — | Login, returns access + refresh token |
+| POST | `/api/v1/auth/refresh` | — | Get new access token via refresh token |
+| POST | `/api/v1/auth/logout` | Bearer JWT | Revoke all refresh tokens |
 | POST | `/api/v1/auth/register/admin` | ADMIN | Register new admin user |
 
 ### Transactions
@@ -184,7 +186,25 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
 
 Response:
 ```json
-{"token": "eyJhbGciOiJIUzI1NiJ9..."}
+{
+  "token": "eyJhbGciOiJIUzI1NiJ9...",
+  "refreshToken": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+### Refresh Access Token
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refreshToken": "<refresh-token>"}'
+```
+
+### Logout
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/logout \
+  -H "Authorization: Bearer <access-token>"
 ```
 
 ### Create Transaction (with idempotency)
@@ -233,6 +253,8 @@ Tests spin up a dedicated PostgreSQL container automatically. No manual setup re
 **404 on cross-user access, not 403** — when a USER requests another user's transaction, the API returns `404 Not Found` rather than `403 Forbidden`. This avoids leaking information about whether a resource exists — a standard practice in fintech APIs.
 
 **ADMIN and USER as separate roles** — ADMIN does not inherit USER permissions. An admin can view all transactions for audit purposes but cannot create transactions. This separation of concerns prevents accidental privilege escalation.
+
+**Refresh token rotation** — every `/auth/refresh` call issues a new refresh token and implicitly invalidates the old one. If a stolen token is used first by an attacker, the legitimate user gets `401` on their next refresh attempt — a standard defence against token theft. Refresh tokens are stored in the database, enabling server-side revocation on logout.
 
 **Structured logs with MDC** — every request is tagged with a `traceId` (UUID) and `userId` in the MDC context. This allows filtering all log entries for a single request or user in Grafana/Loki without any code changes in individual services.
 

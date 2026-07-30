@@ -18,12 +18,15 @@ public class JwtService {
     private String secretKey;
 
     @Value("${jwt.expiration-ms}")
-    private long expirationMs;
+    private long accessTokenExpirationMs;
+
+    @Value("${jwt.refresh-expiration-ms}")
+    private long refreshTokenExpirationMs;
 
     public String generateToken(UserDetails userDetails) {
         SecretKey key = getSigningKey();
         Date now = new Date();
-        Date expiry = new Date(now.getTime() + expirationMs);
+        Date expiry = new Date(now.getTime() + accessTokenExpirationMs);
 
         return Jwts.builder()
                 .subject(userDetails.getUsername())
@@ -60,5 +63,13 @@ public class JwtService {
 
     private SecretKey getSigningKey() {
         return Keys.hmacShaKeyFor(secretKey.getBytes());
+    }
+
+    public String generateRefreshToken() {
+        return java.util.UUID.randomUUID().toString();
+    }
+
+    public long getRefreshTokenExpirationMs() {
+        return refreshTokenExpirationMs;
     }
 }
