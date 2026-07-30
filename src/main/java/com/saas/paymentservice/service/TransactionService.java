@@ -8,6 +8,7 @@ import com.saas.paymentservice.entity.Transaction;
 import com.saas.paymentservice.entity.TransactionStatus;
 import com.saas.paymentservice.repository.IdempotencyKeyRepository;
 import com.saas.paymentservice.repository.TransactionRepository;
+import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -19,9 +20,11 @@ import java.util.UUID;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import org.springframework.validation.annotation.Validated;
 
 
 @Service
+@Validated
 public class TransactionService {
 
     private final Counter transactionCreatedCounter;
@@ -59,7 +62,7 @@ public class TransactionService {
     }
 
     @Transactional
-    public TransactionResponse createTransaction(CreateTransactionRequest request,
+    public TransactionResponse createTransaction(@Valid CreateTransactionRequest request,
                                                  String idempotencyKey,
                                                  UUID userId) {
         return transactionTimer.record(() -> {

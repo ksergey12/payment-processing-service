@@ -4,10 +4,13 @@ import com.saas.paymentservice.dto.RegisterRequest;
 import com.saas.paymentservice.entity.User;
 import com.saas.paymentservice.exception.UsernameAlreadyExistsException;
 import com.saas.paymentservice.repository.UserRepository;
+import jakarta.validation.Valid;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.validation.annotation.Validated;
 
 @Service
+@Validated
 public class UserService {
 
     private final UserRepository userRepository;
@@ -18,7 +21,7 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    public void register(RegisterRequest request) {
+    public void register(@Valid RegisterRequest request) {
         if (userRepository.existsByUsername(request.username())) {
             throw new UsernameAlreadyExistsException(request.username());
         }
@@ -28,7 +31,7 @@ public class UserService {
         userRepository.save(user);
     }
 
-    public void registerAdmin(RegisterRequest request) {
+    public void registerAdmin(@Valid RegisterRequest request) {
         if (userRepository.existsByUsername(request.username())) {
             throw new UsernameAlreadyExistsException(request.username());
         }

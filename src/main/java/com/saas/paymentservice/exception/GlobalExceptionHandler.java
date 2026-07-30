@@ -1,6 +1,7 @@
 package com.saas.paymentservice.exception;
 
 import io.jsonwebtoken.JwtException;
+import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -59,6 +60,21 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleAuthorizationDenied(AuthorizationDeniedException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ErrorResponse.of(403, "FORBIDDEN", "Access denied"));
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException ex) {
+        Map<String, String> errors = new HashMap<>();
+        ex.getConstraintViolations().forEach(violation -> {
+            String field = violation.getPropertyPath().toString();
+            // Убираем префикс имени метода: "createTransaction.request.amount" → "amount"
+            String fieldName = field.contains(".") ?
+                    field.substring(field.lastIndexOf('.') + 1) : field;
+            errors.put(fieldName, violation.getMessage());
+        });
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.ofValidation(400, "VALIDATION_ERROR",
+                        "Request validation failed", errors));
     }
 
     @ExceptionHandler(Exception.class)
