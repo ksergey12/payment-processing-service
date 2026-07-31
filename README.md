@@ -12,7 +12,7 @@ A backend REST API for payment processing, built as a portfolio project demonstr
 | Framework | Spring Boot 3.3 |
 | Security | Spring Security 6 + JWT (jjwt 0.12.x) |
 | Persistence | PostgreSQL 16, Spring Data JPA, Flyway |
-| Resilience | Resilience4j (Circuit Breaker, Retry) |
+| Resilience | Resilience4j (Circuit Breaker, Retry, Rate Limiter) |
 | Observability | Micrometer, Loki, Grafana |
 | API Docs | SpringDoc OpenAPI 2.x (Swagger UI) |
 | Testing | JUnit 5, MockMvc, Testcontainers |
@@ -22,13 +22,15 @@ A backend REST API for payment processing, built as a portfolio project demonstr
 ## Key Features
 
 - **JWT Authentication** — stateless auth with Spring Security 6 (`SecurityFilterChain`-based config, no `WebSecurityConfigurerAdapter`)
+- **Refresh Tokens** — short-lived access tokens (15 min) + long-lived refresh tokens (7 days) with rotation pattern; server-side revocation on logout
 - **Role-based Authorization** — `USER` creates and views own transactions; `ADMIN` views all transactions via `@PreAuthorize`
 - **Data Isolation** — users can only access their own transactions; cross-user access returns `404` to prevent information leakage
 - **Idempotent Payments** — `Idempotency-Key` header prevents duplicate transactions on client retries
-- **Resilience** — Circuit Breaker + Retry on external bank gateway calls via Resilience4j
+- **Resilience** — Circuit Breaker + Retry on external bank gateway calls; Rate Limiter on `/auth/login` (5 req/min) against brute force
 - **Virtual Threads** — enabled via Spring Boot 3.2+ flag for improved I/O-bound throughput (Java 21 Project Loom)
 - **Observability** — structured JSON logs via Logback + MDC tracing (`traceId`, `userId`), Micrometer metrics, Loki + Grafana for log aggregation
-- **Schema Versioning** — Flyway migrations (V1–V8), no Hibernate auto-DDL
+- **Currency Validation** — custom `@ValidCurrency` annotation using `java.util.Currency` ISO 4217 list; no hardcoded currency lists
+- **Schema Versioning** — Flyway migrations (V1–V9), no Hibernate auto-DDL
 - **Integration Tests** — real PostgreSQL via Testcontainers, no H2 mocks
 - **API Documentation** — Swagger UI via SpringDoc OpenAPI 2.x
 
@@ -44,13 +46,14 @@ payment-processing-service/
 │   │   ├── config/          # SecurityConfig, OpenApiConfig, WebConfig
 │   │   ├── controller/      # AuthController, TransactionController
 │   │   ├── dto/             # Request/Response records
-│   │   ├── entity/          # Transaction, User, IdempotencyKey, AuditLog
+│   │   ├── entity/          # Transaction, User, IdempotencyKey, AuditLog, RefreshToken
 │   │   ├── exception/       # GlobalExceptionHandler, custom exceptions
 │   │   ├── external/        # BankGatewayClient (mock)
 │   │   ├── filter/          # MdcFilter
 │   │   ├── repository/      # JPA repositories
 │   │   ├── security/        # JwtService, JwtAuthFilter, CustomUserDetailsService
-│   │   └── service/         # TransactionService, UserService, BankGatewayService, AuditService
+│   │   └── service/         # TransactionService, UserService, BankGatewayService, AuditService, RefreshTokenService
+│   │   └── validation/      # @ValidCurrency, CurrencyValidator
 │   ├── main/resources/
 │   │   ├── application.yml
 │   │   ├── logback-spring.xml
@@ -66,7 +69,7 @@ payment-processing-service/
 | Method | Endpoint | Role | Description |
 |--------|----------|------|-------------|
 | POST | `/api/v1/auth/register` | — | Register new user (role: USER) |
-| POST | `/api/v1/auth/login` | — | Login, returns access + refresh token |
+| POST | `/api/v1/auth/login` | — | Login, returns access + refresh token (rate limited: 5 req/min) |
 | POST | `/api/v1/auth/refresh` | — | Get new access token via refresh token |
 | POST | `/api/v1/auth/logout` | Bearer JWT | Revoke all refresh tokens |
 | POST | `/api/v1/auth/register/admin` | ADMIN | Register new admin user |
@@ -256,6 +259,10 @@ Tests spin up a dedicated PostgreSQL container automatically. No manual setup re
 
 **Refresh token rotation** — every `/auth/refresh` call issues a new refresh token and implicitly invalidates the old one. If a stolen token is used first by an attacker, the legitimate user gets `401` on their next refresh attempt — a standard defence against token theft. Refresh tokens are stored in the database, enabling server-side revocation on logout.
 
+**Rate limiting on `/auth/login`** — Resilience4j `@RateLimiter` limits login attempts to 5 per minute per instance, returning `429 Too Many Requests` on excess. Handled via `GlobalExceptionHandler` (`RequestNotPermitted`) rather than a fallback method, which avoids interference with the permit counter.
+
+**Custom `@ValidCurrency` via `java.util.Currency`** — ISO 4217 validation uses the JDK's built-in `Currency.getInstance()` rather than a hardcoded list. This means the validator automatically stays current with JDK updates and handles all 180+ ISO currencies without maintenance.
+
 **Structured logs with MDC** — every request is tagged with a `traceId` (UUID) and `userId` in the MDC context. This allows filtering all log entries for a single request or user in Grafana/Loki without any code changes in individual services.
 
 ## Environment Variables
@@ -264,7 +271,7 @@ For production, replace hardcoded values in `application.yml` with environment v
 
 | Variable | Description |
 |---|---|
-| `JWT_SECRET` | HMAC-SHA256 signing key (min 32 bytes) |
+| `JWT_SECRET` | HMAC-SHA256 signing key (min 32 bytes). Falls back to a default dev value if not set |
 | `SPRING_DATASOURCE_URL` | PostgreSQL JDBC URL |
 | `SPRING_DATASOURCE_USERNAME` | DB username |
 | `SPRING_DATASOURCE_PASSWORD` | DB password |

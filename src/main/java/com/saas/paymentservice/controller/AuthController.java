@@ -9,6 +9,7 @@ import com.saas.paymentservice.repository.UserRepository;
 import com.saas.paymentservice.security.JwtService;
 import com.saas.paymentservice.service.RefreshTokenService;
 import com.saas.paymentservice.service.UserService;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -46,6 +47,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
+    @RateLimiter(name = "loginRateLimiter")
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
         var authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.username(), request.password()));

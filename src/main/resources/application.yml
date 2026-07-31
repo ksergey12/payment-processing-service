@@ -13,7 +13,7 @@ spring:
     enabled: true
   threads:
     virtual:
-      enabled: false
+      enabled: true
   profiles:
     active: local
 
@@ -21,7 +21,8 @@ server:
   port: 8080
 
 jwt:
-  secret: "VGhpc0lzQVRlc3RTZWNyZXRLZXlGb3JKV1RTaWduaW5nMjAyNg=="
+  # Default value for local development only. Override via JWT_SECRET env variable in production
+  secret: ${JWT_SECRET:VGhpc0lzQVRlc3RTZWNyZXRLZXlGb3JKV1RTaWduaW5nMjAyNg==}
   expiration-ms: 900000             # 15 min for access token
   refresh-expiration-ms: 604800000  # 7 days for refresh token
 
@@ -43,6 +44,12 @@ resilience4j:
         permitted-number-of-calls-in-half-open-state: 3
         record-exceptions:
           - com.saas.paymentservice.external.BankGatewayException
+  ratelimiter:
+    instances:
+      loginRateLimiter:
+        limit-for-period: 5
+        limit-refresh-period: 1m
+        timeout-duration: 0s
 
 management:
   endpoints:

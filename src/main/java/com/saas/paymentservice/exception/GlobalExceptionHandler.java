@@ -1,5 +1,6 @@
 package com.saas.paymentservice.exception;
 
+import io.github.resilience4j.ratelimiter.RequestNotPermitted;
 import io.jsonwebtoken.JwtException;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
@@ -81,6 +82,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(ErrorResponse.of(401, "UNAUTHORIZED", ex.getMessage()));
+    }
+
+    @ExceptionHandler(RequestNotPermitted.class)
+    public ResponseEntity<ErrorResponse> handleRateLimit(RequestNotPermitted ex) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(ErrorResponse.of(429, "TOO_MANY_REQUESTS",
+                        "Too many login attempts. Please try again later."));
     }
 
     @ExceptionHandler(Exception.class)
