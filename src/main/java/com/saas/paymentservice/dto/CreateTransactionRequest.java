@@ -1,8 +1,8 @@
 package com.saas.paymentservice.dto;
 
+import com.saas.paymentservice.validation.ValidCurrency;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 
@@ -12,7 +12,7 @@ public record CreateTransactionRequest(
         BigDecimal amount,
 
         @NotNull(message = "Currency is required")
-        @Size(min = 3, max = 3, message = "Currency must be a 3-letter ISO code")
+        @ValidCurrency
         String currency
 ) {
 }
